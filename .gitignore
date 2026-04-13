@@ -52,3 +52,7 @@ reports/
 *.xlsx
 *.docx
 
+# Personal execution workflow notes (not for repo history)
+EXECUTION_STRUCTURE.*
+Execution structure.txt
+
