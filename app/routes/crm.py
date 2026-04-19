@@ -33,7 +33,7 @@ def process_lead():
     """
     try:
         # Parse JSON payload
-        payload = request.get_json()
+        payload = request.get_json(silent=True)
 
         if not payload:
             logger.warning("Empty payload received")

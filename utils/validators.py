@@ -1,10 +1,11 @@
 """Payload validation utilities."""
 
+from typing import List
 import jsonschema
 from utils.schemas import LEAD_SCHEMA
 
 
-def validate_lead_payload(payload: dict) -> list[str]:
+def validate_lead_payload(payload: dict) -> List[str]:
     """
     Validate a lead payload against LEAD_SCHEMA.
 
