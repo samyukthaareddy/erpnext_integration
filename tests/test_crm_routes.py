@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import patch, Mock
 from app.main import create_app
+import app.assignment_engine as engine
 
 
 @pytest.fixture
@@ -31,7 +32,8 @@ VALID_PAYLOAD = {
 
 
 def test_process_lead_success(client):
-    """Test successful lead processing."""
+    """Test successful lead processing with assignment."""
+    engine._rr_index = 0
     with patch("app.routes.crm.ERPNextClient") as mock_client_class:
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -39,6 +41,7 @@ def test_process_lead_success(client):
             "name": "LEAD-0001",
             "email_id": "john@example.com",
         }
+        mock_client.update_lead.return_value = {"name": "LEAD-0001"}
 
         response = client.post(
             "/api/crm/process-lead",
@@ -50,7 +53,9 @@ def test_process_lead_success(client):
         data = response.get_json()
         assert data["lead_id"] == "LEAD-0001"
         assert data["status"] == "success"
+        assert "assigned_to" in data
         mock_client.create_lead.assert_called_once()
+        mock_client.update_lead.assert_called_once()
 
 
 def test_process_lead_empty_payload(client):
@@ -142,6 +147,45 @@ def test_process_lead_erpnext_error(client):
         assert response.status_code == 500
         data = response.get_json()
         assert "error" in data
+
+
+def test_process_lead_assignment_included_in_response(client):
+    """Test that assigned_to is returned in the response."""
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        mock_client.create_lead.return_value = {"name": "LEAD-0005"}
+        mock_client.update_lead.return_value = {"name": "LEAD-0005"}
+
+        response = client.post(
+            "/api/crm/process-lead",
+            json=VALID_PAYLOAD,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        data = response.get_json()
+        assert "assigned_to" in data
+        assert data["assigned_to"] is not None
+
+
+def test_process_lead_update_lead_called_with_assign(client):
+    """Test that update_lead is called with _assign field."""
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        mock_client.create_lead.return_value = {"name": "LEAD-0006"}
+        mock_client.update_lead.return_value = {"name": "LEAD-0006"}
+
+        client.post(
+            "/api/crm/process-lead",
+            json=VALID_PAYLOAD,
+            content_type="application/json",
+        )
+
+        call_args = mock_client.update_lead.call_args
+        assert call_args[0][0] == "LEAD-0006"
+        assert "_assign" in call_args[0][1]
 
 
 def test_process_lead_client_init_error(client):

@@ -3,6 +3,7 @@
 from flask import Blueprint, request, jsonify
 from utils.validators import validate_lead_payload
 from app.erpnext_client import ERPNextClient, ERPNextException
+from app.assignment_engine import assign_to_salesperson
 from config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -68,10 +69,16 @@ def process_lead():
 
             lead = client.create_lead(lead_data)
             lead_id = lead.get("name")
-
             logger.info(f"Lead created successfully: {lead_id}")
+
+            # Assign lead to salesperson
+            assigned_to = assign_to_salesperson(payload)
+            client.update_lead(lead_id, {"_assign": assigned_to})
+            logger.info(f"Lead {lead_id} assigned to {assigned_to}")
+
             return jsonify({
                 "lead_id": lead_id,
+                "assigned_to": assigned_to,
                 "status": "success"
             }), 201
 
