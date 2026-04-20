@@ -1,0 +1,20 @@
+{
+  "strategy": "round_robin",
+  "salespersons": [
+    {
+      "name": "sales1@example.com",
+      "product_expertise": ["ERP", "CRM"],
+      "capacity": 10
+    },
+    {
+      "name": "sales2@example.com",
+      "product_expertise": ["Manufacturing", "Inventory"],
+      "capacity": 10
+    },
+    {
+      "name": "sales3@example.com",
+      "product_expertise": ["Accounting", "HR"],
+      "capacity": 8
+    }
+  ]
+}
