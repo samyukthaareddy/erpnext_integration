@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify
 from utils.validators import validate_lead_payload
 from app.erpnext_client import ERPNextClient, ERPNextException
 from app.assignment_engine import assign_to_salesperson
+from app.task_service import create_followup_task
 from config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -29,6 +30,8 @@ def process_lead():
     Returns:
     {
         "lead_id": "LEAD-0001",
+        "task_id": "TDO-000001",
+        "assigned_to": "sales1@example.com",
         "status": "success"
     }
     """
@@ -76,8 +79,19 @@ def process_lead():
             client.update_lead(lead_id, {"_assign": assigned_to})
             logger.info(f"Lead {lead_id} assigned to {assigned_to}")
 
+            # Create follow-up task
+            task = create_followup_task(
+                lead_id=lead_id,
+                assigned_to=assigned_to,
+                lead_data=payload,
+                client=client
+            )
+            task_id = task.get("name")
+            logger.info(f"Follow-up task created: {task_id}")
+
             return jsonify({
                 "lead_id": lead_id,
+                "task_id": task_id,
                 "assigned_to": assigned_to,
                 "status": "success"
             }), 201

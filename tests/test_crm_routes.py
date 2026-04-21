@@ -35,27 +35,29 @@ def test_process_lead_success(client):
     """Test successful lead processing with assignment."""
     engine._rr_index = 0
     with patch("app.routes.crm.ERPNextClient") as mock_client_class:
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-        mock_client.create_lead.return_value = {
-            "name": "LEAD-0001",
-            "email_id": "john@example.com",
-        }
-        mock_client.update_lead.return_value = {"name": "LEAD-0001"}
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.create_lead.return_value = {
+                "name": "LEAD-0001",
+                "email_id": "john@example.com",
+            }
+            mock_client.update_lead.return_value = {"name": "LEAD-0001"}
+            mock_task_service.return_value = {"name": "TDO-000001"}
 
-        response = client.post(
-            "/api/crm/process-lead",
-            json=VALID_PAYLOAD,
-            content_type="application/json",
-        )
+            response = client.post(
+                "/api/crm/process-lead",
+                json=VALID_PAYLOAD,
+                content_type="application/json",
+            )
 
-        assert response.status_code == 201
-        data = response.get_json()
-        assert data["lead_id"] == "LEAD-0001"
-        assert data["status"] == "success"
-        assert "assigned_to" in data
-        mock_client.create_lead.assert_called_once()
-        mock_client.update_lead.assert_called_once()
+            assert response.status_code == 201
+            data = response.get_json()
+            assert data["lead_id"] == "LEAD-0001"
+            assert data["status"] == "success"
+            assert "assigned_to" in data
+            mock_client.create_lead.assert_called_once()
+            mock_client.update_lead.assert_called_once()
 
 
 def test_process_lead_empty_payload(client):
@@ -152,21 +154,23 @@ def test_process_lead_erpnext_error(client):
 def test_process_lead_assignment_included_in_response(client):
     """Test that assigned_to is returned in the response."""
     with patch("app.routes.crm.ERPNextClient") as mock_client_class:
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-        mock_client.create_lead.return_value = {"name": "LEAD-0005"}
-        mock_client.update_lead.return_value = {"name": "LEAD-0005"}
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.create_lead.return_value = {"name": "LEAD-0005"}
+            mock_client.update_lead.return_value = {"name": "LEAD-0005"}
+            mock_task_service.return_value = {"name": "TDO-000001"}
 
-        response = client.post(
-            "/api/crm/process-lead",
-            json=VALID_PAYLOAD,
-            content_type="application/json",
-        )
+            response = client.post(
+                "/api/crm/process-lead",
+                json=VALID_PAYLOAD,
+                content_type="application/json",
+            )
 
-        assert response.status_code == 201
-        data = response.get_json()
-        assert "assigned_to" in data
-        assert data["assigned_to"] is not None
+            assert response.status_code == 201
+            data = response.get_json()
+            assert "assigned_to" in data
+            assert data["assigned_to"] is not None
 
 
 def test_process_lead_update_lead_called_with_assign(client):
@@ -207,28 +211,30 @@ def test_process_lead_client_init_error(client):
 def test_process_lead_with_optional_fields(client):
     """Test with optional fields included."""
     with patch("app.routes.crm.ERPNextClient") as mock_client_class:
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-        mock_client.create_lead.return_value = {
-            "name": "LEAD-0002",
-            "email_id": "jane@example.com",
-        }
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.create_lead.return_value = {
+                "name": "LEAD-0002",
+                "email_id": "jane@example.com",
+            }
+            mock_task_service.return_value = {"name": "TDO-000001"}
 
-        payload = {
-            **VALID_PAYLOAD,
-            "product_interest": "ERP Solutions",
-            "message": "Interested in demo",
-        }
+            payload = {
+                **VALID_PAYLOAD,
+                "product_interest": "ERP Solutions",
+                "message": "Interested in demo",
+            }
 
-        response = client.post(
-            "/api/crm/process-lead",
-            json=payload,
-            content_type="application/json",
-        )
+            response = client.post(
+                "/api/crm/process-lead",
+                json=payload,
+                content_type="application/json",
+            )
 
-        assert response.status_code == 201
-        data = response.get_json()
-        assert data["status"] == "success"
+            assert response.status_code == 201
+            data = response.get_json()
+            assert data["status"] == "success"
 
 
 def test_process_lead_name_parsing(client):
@@ -248,3 +254,95 @@ def test_process_lead_name_parsing(client):
         call_args = mock_client.create_lead.call_args[0][0]
         assert call_args["first_name"] == "John"
         assert call_args["last_name"] == "Doe"
+
+
+def test_process_lead_with_task_creation(client):
+    """Test successful lead processing with task creation."""
+    engine._rr_index = 0
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.create_lead.return_value = {"name": "LEAD-0007"}
+            mock_client.update_lead.return_value = {"name": "LEAD-0007"}
+            mock_task_service.return_value = {"name": "TDO-000001"}
+
+            response = client.post(
+                "/api/crm/process-lead",
+                json=VALID_PAYLOAD,
+                content_type="application/json",
+            )
+
+            assert response.status_code == 201
+            data = response.get_json()
+            assert "task_id" in data
+            assert data["task_id"] == "TDO-000001"
+            mock_task_service.assert_called_once()
+
+
+def test_process_lead_task_creation_called_with_correct_args(client):
+    """Test that task creation is called with correct arguments."""
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.create_lead.return_value = {"name": "LEAD-0008"}
+            mock_task_service.return_value = {"name": "TDO-000001"}
+
+            client.post(
+                "/api/crm/process-lead",
+                json=VALID_PAYLOAD,
+                content_type="application/json",
+            )
+
+            # Verify task_service was called with correct arguments
+            call_args = mock_task_service.call_args
+            assert call_args[1]["lead_id"] == "LEAD-0008"
+            assert call_args[1]["lead_data"] == VALID_PAYLOAD
+            assert call_args[1]["client"] == mock_client
+
+
+def test_process_lead_full_response_with_all_fields(client):
+    """Test that response includes lead_id, task_id, assigned_to, and status."""
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.create_lead.return_value = {"name": "LEAD-0009"}
+            mock_task_service.return_value = {"name": "TDO-000002"}
+
+            response = client.post(
+                "/api/crm/process-lead",
+                json=VALID_PAYLOAD,
+                content_type="application/json",
+            )
+
+            assert response.status_code == 201
+            data = response.get_json()
+            assert "lead_id" in data
+            assert "task_id" in data
+            assert "assigned_to" in data
+            assert "status" in data
+            assert data["status"] == "success"
+
+
+def test_process_lead_task_error_propagates(client):
+    """Test that task creation errors are propagated."""
+    from app.erpnext_client import ERPNextException
+
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.create_lead.return_value = {"name": "LEAD-0010"}
+            mock_task_service.side_effect = ERPNextException("Task creation failed")
+
+            response = client.post(
+                "/api/crm/process-lead",
+                json=VALID_PAYLOAD,
+                content_type="application/json",
+            )
+
+            assert response.status_code == 500
+            data = response.get_json()
+            assert "error" in data
