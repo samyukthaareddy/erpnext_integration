@@ -6,6 +6,7 @@ import time
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from config.logging import get_logger
+from app.middleware import register_middleware
 
 logger = get_logger(__name__)
 
@@ -13,6 +14,7 @@ logger = get_logger(__name__)
 def create_app():
     app = Flask(__name__)
     CORS(app)
+    register_middleware(app)
 
     @app.before_request
     def log_request():
