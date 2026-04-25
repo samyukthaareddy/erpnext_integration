@@ -1,0 +1,159 @@
+{
+  "info": {
+    "name": "ERPNext CRM Integration",
+    "description": "Postman collection for testing the ERPNext CRM Integration API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "",
+      "type": "string",
+      "description": "Set INTERNAL_API_KEY value here if enabled"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Happy Path - Process Lead",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-API-Key", "value": "{{api_key}}", "disabled": true }
+        ],
+        "url": "{{base_url}}/api/crm/process-lead",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"phone\": \"+1-800-555-0199\",\n  \"company\": \"ACME Corp\",\n  \"product_interest\": \"ERP Solutions\",\n  \"message\": \"Interested in a demo\",\n  \"source\": \"website\"\n}"
+        },
+        "description": "Happy path: valid payload should return 201 with lead_id, task_id, assigned_to, status"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+              "pm.test('Response has lead_id', () => pm.expect(pm.response.json()).to.have.property('lead_id'));",
+              "pm.test('Response has task_id', () => pm.expect(pm.response.json()).to.have.property('task_id'));",
+              "pm.test('Response has assigned_to', () => pm.expect(pm.response.json()).to.have.property('assigned_to'));",
+              "pm.test('Status is success', () => pm.expect(pm.response.json().status).to.eql('success'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Validation Error - Missing Required Fields",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": "{{base_url}}/api/crm/process-lead",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Jane Smith\",\n  \"company\": \"Tech Corp\"\n}"
+        },
+        "description": "Missing email and phone — should return 400 with validation error details"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+              "pm.test('Response has error', () => pm.expect(pm.response.json()).to.have.property('error'));",
+              "pm.test('Validation failed message', () => pm.expect(pm.response.json().error).to.include('Validation'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Validation Error - Invalid Email and Phone",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": "{{base_url}}/api/crm/process-lead",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Jane Smith\",\n  \"email\": \"not-an-email\",\n  \"phone\": \"abc\",\n  \"company\": \"Tech Corp\"\n}"
+        },
+        "description": "Invalid email and phone formats — should return 400"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+              "pm.test('Response has error', () => pm.expect(pm.response.json()).to.have.property('error'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Assignment Verification - Product Expertise Match",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": "{{base_url}}/api/crm/process-lead",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Alice Brown\",\n  \"email\": \"alice@company.com\",\n  \"phone\": \"+1-555-123-4567\",\n  \"company\": \"Manufacturing Co\",\n  \"product_interest\": \"Manufacturing\",\n  \"source\": \"referral\"\n}"
+        },
+        "description": "Lead with product_interest matching a salesperson's expertise — verify assigned_to is correct"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+              "pm.test('assigned_to is present', () => pm.expect(pm.response.json()).to.have.property('assigned_to'));",
+              "pm.test('assigned_to is a string', () => pm.expect(pm.response.json().assigned_to).to.be.a('string'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Task Creation Verification",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": "{{base_url}}/api/crm/process-lead",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Bob Wilson\",\n  \"email\": \"bob@startup.io\",\n  \"phone\": \"+44-20-7946-0958\",\n  \"company\": \"Startup IO\",\n  \"product_interest\": \"CRM\",\n  \"message\": \"Looking for a CRM solution\",\n  \"source\": \"linkedin\"\n}"
+        },
+        "description": "Verify task_id is returned and is non-null"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+              "pm.test('task_id is present', () => pm.expect(pm.response.json()).to.have.property('task_id'));",
+              "pm.test('task_id is not null', () => pm.expect(pm.response.json().task_id).to.not.be.null);"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
