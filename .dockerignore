@@ -1,0 +1,15 @@
+.env
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+logs/
+docs/
+tests/
+*.md
+.gitignore
+EXECUTION_STRUCTURE.md
+docker-compose*.yml
