@@ -1,3 +1,4 @@
+# Virtual environments
 /.venv/
 /venv/
 /env/
@@ -31,19 +32,24 @@ logs/
 *.sqlite3
 *.db
 
-# Environment and secrets
+# Environment and secrets (NEVER commit these)
 .env
 .env.*
+.env.prod
 !.env.example
 
 # IDE and editor settings
 .vscode/
 .idea/
 *.code-workspace
+*.swp
+*.swo
+*~
 
 # OS files
 .DS_Store
 Thumbs.db
+.directory
 
 # Test and local data exports
 test-output/
@@ -52,7 +58,26 @@ reports/
 *.xlsx
 *.docx
 
-# Personal execution workflow notes (not for repo history)
-EXECUTION_STRUCTURE.*
-Execution structure.txt
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+/temp/
 
+# Internal planning documents (not for repo history)
+EXECUTION_STRUCTURE.*
+Execution_structure.txt
+EXECUTION_STRUCTURE.md
+
+# IDE-specific
+.vscode/
+.idea/
+.project
+.pydevproject
+*.sublime-project
+*.sublime-workspace
+
+# Backup files
+*.bak
+*.backup
+*~
