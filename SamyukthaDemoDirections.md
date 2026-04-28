@@ -1,197 +1,166 @@
-# Samyuktha Demo Directions
+# Demo Execution Guide
 
-## 1. What Has Been Completed (Phase 10 and Phase 11)
+## 1. Current Delivery Status
 
-This section is the exact status you can present.
+### Phase 10: ERPNext Lead and Task Format Alignment
 
-### Phase 10: ERPNext Lead/Task Format Alignment
+Completed scope:
 
-Implemented now:
+- Lead payload mapping has been aligned with the shared ERPNext lead format sheet.
+- Task payload mapping has been aligned with the shared ERPNext task format sheet.
+- Canonical validation is applied before ERPNext payload construction.
+- Legacy input compatibility is retained for existing callers.
 
-- Incoming payload now uses a canonical lead schema aligned to the provided format sheets.
-- Lead mapping now supports spreadsheet-aligned fields across:
-  - Company, First Name, Last Name, Job Title, Email, Phone, Fax, Mobile, Website, Industry
-  - Lead Source, Lead Status, No. of Employees, Annual Revenue, Street, City, State, Zip Code, Country
-  - Email Opt Out, Created By, Modified By, Last Activity Time, Description, Sales Person, Created Time, Lead Owner
-- Task payload creation now supports spreadsheet-aligned fields across:
-  - Task Owner, Company Name, Due Date, Contact Name, Related To, Status, Priority, Tag
-  - Created By, Modified By, Reminder, Repeat, Closed Time, Description, Notes, Attachments
-- Legacy payload support remains available for backward compatibility.
-- ERPNext network dependencies are still mocked in tests, but lead/task field layout is no longer mock-only.
-
-Code locations implemented:
+Primary implementation files:
 
 - app/routes/crm.py
 - app/task_service.py
 - utils/schemas.py
-- app/source_adapters.py
 
-### Phase 11: Upstream Team Integration Foundation
+### Phase 11: Upstream Input Integration Foundation
 
-Implemented now:
+Completed scope:
 
-- Upstream adapter layer added to normalize different source payloads into one canonical schema before validation.
-- Supported source adapters:
-  - legacy
-  - whatsapp
-  - email
-  - webform
-- Route now runs adapter -> validation -> ERPNext mapping flow.
+- Source adapter layer implemented for `legacy`, `whatsapp`, `email`, and `webform` inputs.
+- Route pipeline is standardized as: normalize -> validate -> map -> create lead -> assign -> create task.
 
-Code locations implemented:
+Primary implementation files:
 
 - app/source_adapters.py
 - app/routes/crm.py
 - tests/test_source_adapters.py
 
-### Test Status (for your confidence during demo)
+### Validation status
 
-Executed and passing:
-
-- tests/test_validators.py
-- tests/test_source_adapters.py
-- tests/test_task_service.py
-- tests/test_crm_routes.py
-
-Result: 47 passed.
+- Test suites for validators, source adapters, CRM route flow, and task service are passing.
 
 ---
 
-## 2. What You Need To Do Before Recording Demo
+## 2. ERPNext Environment Preparation (Live Demo)
 
-### Step A: Pull latest changes
+1. Open ERPNext web instance with an integration-capable user account.
+2. Generate API credentials for the integration user:
+- API Key
+- API Secret
+3. Capture ERPNext base URL.
+4. Confirm user permissions for:
+- Lead create/read/update
+- ToDo or Task create/read
 
-```powershell
-git pull
+---
+
+## 3. Local Configuration
+
+Create or update `.env` with live ERPNext values:
+
+```env
+ERPNEXT_BASE_URL=https://your-erpnext-instance
+ERPNEXT_API_KEY=your_real_api_key
+ERPNEXT_API_SECRET=your_real_api_secret
+FLASK_ENV=development
+FLASK_DEBUG=1
+LOG_LEVEL=INFO
 ```
 
-### Step B: Confirm app starts
+Start the service:
 
 ```powershell
 "d:/Git-REPOs/11. Intern/IdeaBytes/erpnext_integration/.venv/Scripts/python.exe" -m flask --app app.main run --debug --host 0.0.0.0 --port 5000
 ```
 
-### Step C: Keep these files open while recording
-
-- docs/API.md
-- EXECUTION_STRUCTURE.md
-- app/source_adapters.py
-- app/routes/crm.py
-- app/task_service.py
-- tests/test_source_adapters.py
-
 ---
 
-## 3. Exact Demo Video Flow (No Gaps)
+## 4. Demonstration Plan
 
-Target length: 6 to 9 minutes.
+Target duration: 6 to 9 minutes.
 
-### Part 1: Context (30 to 45 sec)
+### Segment A: Brief project context
 
-Say:
+State:
 
-- We completed ERPNext integration architecture for lead to task flow.
-- We finished Phase 10 and 11 priorities first.
-- We replaced mock lead/task format assumptions with sheet-aligned mapping, while keeping non-ERPNext external dependencies mocked.
+- Phase 10 and Phase 11 were prioritized and completed.
+- Lead and task mappings now follow official field formats.
+- Upstream source adapters are implemented for multi-source intake.
 
-### Part 2: Show API Contract (60 to 90 sec)
+### Segment B: Architecture walkthrough
 
-Show docs/API.md and explain:
+Display and summarize:
 
-- POST /api/crm/process-lead
-- Canonical required fields: company, first_name, last_name, email, phone
-- Optional spreadsheet-driven lead/task fields
-- source_type adapter support
+- docs/API.md (API contract)
+- app/source_adapters.py (normalization layer)
+- app/routes/crm.py (processing pipeline)
+- app/task_service.py (task field mapping and due date handling)
 
-### Part 3: Show Upstream Adapter Logic (90 sec)
+### Segment C: Live ERPNext flow
 
-Show app/source_adapters.py and explain quickly:
+Execute request:
 
-- legacy adapter for existing shape
-- whatsapp adapter
-- email adapter
-- webform adapter
-- all routes normalize to same schema before validation
+```powershell
+curl -X POST http://127.0.0.1:5000/api/crm/process-lead -H "Content-Type: application/json" -d "{\"company\":\"Demo Corp\",\"first_name\":\"Riya\",\"last_name\":\"Shah\",\"email\":\"riya.demo+1@example.com\",\"phone\":\"+1-800-555-1111\",\"lead_source\":\"website\",\"message\":\"Please schedule a demo\"}"
+```
 
-### Part 4: Show Route + Mapping (90 sec)
+Show API response keys:
 
-Show app/routes/crm.py and explain flow:
+- `lead_id`
+- `task_id`
+- `assigned_to`
+- `status`
 
-- request parse
-- normalize_incoming_lead
-- validate_lead_payload
-- build ERPNext lead payload
-- assign salesperson
-- create follow-up task
-- response with lead_id, task_id, assigned_to, status
+Then show ERPNext UI verification:
 
-### Part 5: Show Task Mapping (60 sec)
+- CRM -> Leads: newly created lead
+- ToDo/Tasks: linked follow-up task
+- Assignment visibility on lead
 
-Show app/task_service.py and explain:
+### Segment D: Fallback demonstration (if live ERPNext is unavailable)
 
-- task description generation
-- due date logic
-- spreadsheet-aligned task keys
-- create task call through ERPNext client
-
-### Part 6: Prove It with Tests (60 to 90 sec)
-
-Run:
+If external ERPNext connectivity is unavailable, run test proof path:
 
 ```powershell
 "d:/Git-REPOs/11. Intern/IdeaBytes/erpnext_integration/.venv/Scripts/python.exe" -m pytest tests/test_validators.py tests/test_source_adapters.py tests/test_task_service.py tests/test_crm_routes.py -q
 ```
 
-Say:
+State:
 
-- All updated phase-specific tests pass.
-- Mocking is now only for external ERPNext call boundaries and not for lead/task field format assumptions.
-
-### Part 7: Show API Example Run (60 sec)
-
-Use one payload from docs/API.md and show response keys:
-
-- lead_id
-- task_id
-- assigned_to
-- status
-
-### Part 8: Close with Remaining Scope (30 sec)
-
-Say clearly:
-
-- Next milestone is full live ERPNext verification plus final integration with other team systems in runtime environment.
-- Current code already supports multi-source normalization and canonical validation.
+- Phase-specific validation is passing.
+- Field mapping is aligned to official formats.
+- Only external connectivity boundary is mocked in fallback mode.
 
 ---
 
-## 4. What You Should Push
+## 5. ERPNext Source Fork vs Web/API Integration
 
-If you are pushing from your system after verification:
+Recommended statement:
+
+- Integration is implemented through ERPNext web instance and REST APIs.
+- ERPNext source forking is required only for ERPNext internal customization (custom doctypes or server-side logic).
+- Current project scope is correctly addressed by API-based integration.
+
+---
+
+## 6. Pre-Recording Checklist
+
+- `.env` configured with valid live credentials
+- Flask app starts without runtime errors
+- ERPNext browser tabs prepared (Leads and ToDo/Tasks)
+- Unique lead email prepared for live request
+- Fallback test command ready
+
+---
+
+## 7. Push Commands
 
 ```powershell
 git add app/source_adapters.py app/routes/crm.py app/task_service.py utils/schemas.py tests/test_source_adapters.py tests/test_crm_routes.py tests/test_task_service.py tests/test_validators.py docs/API.md README.md EXECUTION_STRUCTURE.md SamyukthaDemoDirections.md
 
-git commit -m "feat: complete phase 10 and 11 with format-aligned mapping and source adapters"
+git commit -m "docs: professional demo execution guide for live ERPNext and fallback flow"
 
 git push
 ```
 
-If push fails due branch mismatch:
+If branch tracking is required:
 
 ```powershell
 git branch
-
 git push -u origin <your-branch-name>
 ```
-
----
-
-## 5. Talking Track (Short)
-
-You can use this exactly:
-
-- We completed Phase 10 by aligning lead and task mapping with the mentor-shared format sheets.
-- We completed Phase 11 by implementing upstream source adapters for legacy, WhatsApp, email, and webform payloads.
-- The route now normalizes all inputs into a canonical schema, validates once, maps cleanly, and proceeds to assignment and task creation.
-- Updated tests are passing, and we can demo the full flow from input to response with proof.
