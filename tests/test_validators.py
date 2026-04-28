@@ -4,10 +4,11 @@ import pytest
 from utils.validators import validate_lead_payload
 
 VALID_PAYLOAD = {
-    "name": "Jane Doe",
+    "company": "Acme Corp",
+    "first_name": "Jane",
+    "last_name": "Doe",
     "email": "jane@example.com",
     "phone": "+1-800-555-0199",
-    "company": "Acme Corp",
 }
 
 
@@ -16,7 +17,12 @@ def test_valid_payload():
 
 
 def test_valid_payload_with_optional_fields():
-    payload = {**VALID_PAYLOAD, "product_interest": "ERP", "message": "Hello", "source": "Web"}
+    payload = {
+        **VALID_PAYLOAD,
+        "lead_source": "webform",
+        "task_priority": "High",
+        "message": "Hello",
+    }
     assert validate_lead_payload(payload) == []
 
 
@@ -27,9 +33,9 @@ def test_missing_required_field_email():
 
 
 def test_missing_required_field_name():
-    payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "name"}
+    payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "first_name"}
     errors = validate_lead_payload(payload)
-    assert any("name" in e for e in errors)
+    assert any("first_name" in e for e in errors)
 
 
 def test_missing_required_field_phone():
@@ -42,6 +48,12 @@ def test_missing_required_field_company():
     payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "company"}
     errors = validate_lead_payload(payload)
     assert any("company" in e for e in errors)
+
+
+def test_missing_required_field_last_name():
+    payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "last_name"}
+    errors = validate_lead_payload(payload)
+    assert any("last_name" in e for e in errors)
 
 
 def test_invalid_email_format():
@@ -63,7 +75,7 @@ def test_additional_properties_rejected():
 
 
 def test_empty_name_rejected():
-    payload = {**VALID_PAYLOAD, "name": ""}
+    payload = {**VALID_PAYLOAD, "first_name": ""}
     errors = validate_lead_payload(payload)
     assert errors
 

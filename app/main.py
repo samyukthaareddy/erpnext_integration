@@ -19,12 +19,12 @@ def create_app():
     @app.before_request
     def log_request():
         request._start_time = time.time()
-        logger.info(f"→ {request.method} {request.path}")
+        logger.info(f"-> {request.method} {request.path}")
 
     @app.after_request
     def log_response(response):
         duration = time.time() - getattr(request, "_start_time", time.time())
-        logger.info(f"← {response.status_code} {request.path} ({duration:.3f}s)")
+        logger.info(f"<- {response.status_code} {request.path} ({duration:.3f}s)")
         return response
 
     @app.errorhandler(404)

@@ -50,13 +50,17 @@ Process an incoming lead and automatically:
 
 ```json
 {
-  "name": "string (required)",
+  "company": "string (required)",
+  "first_name": "string (required)",
+  "last_name": "string (required)",
+  "job_title": "string (optional)",
   "email": "string (required, valid email format)",
   "phone": "string (required, phone format: +1-XXX-XXX-XXXX or variations)",
-  "company": "string (required)",
-  "product_interest": "string (optional)",
-  "message": "string (optional)",
-  "source": "string (optional)"
+  "mobile": "string (optional)",
+  "website": "string (optional)",
+  "lead_source": "string (optional)",
+  "description": "string (optional)",
+  "source_type": "string (optional: whatsapp|email|webform|legacy)"
 }
 ```
 
@@ -66,13 +70,14 @@ Process an incoming lead and automatically:
 curl -X POST http://localhost:5000/api/crm/process-lead \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "John Doe",
+    "company": "ACME Corp",
+    "first_name": "John",
+    "last_name": "Doe",
     "email": "john.doe@example.com",
     "phone": "+1-800-555-0199",
-    "company": "ACME Corp",
+    "lead_source": "website",
     "product_interest": "ERP Solutions",
-    "message": "Interested in a demo",
-    "source": "website"
+    "message": "Interested in a demo"
   }'
 ```
 
@@ -181,18 +186,20 @@ curl -X POST http://localhost:5000/api/crm/process-lead \
 
 | Field | Type | Rules | Example |
 |-------|------|-------|---------|
-| name | string | Non-empty, 1-500 chars | "John Doe" |
+| company | string | Non-empty, 1-500 chars | "ACME Corp" |
+| first_name | string | Non-empty, 1-500 chars | "John" |
+| last_name | string | Non-empty, 1-500 chars | "Doe" |
 | email | string | Valid email format (RFC 5322) | "john@example.com" |
 | phone | string | Phone format pattern | "+1-800-555-0199" |
-| company | string | Non-empty, 1-500 chars | "ACME Corp" |
 
 ### Optional Fields
 
 | Field | Type | Rules | Example |
 |-------|------|-------|---------|
+| lead_source | string | Max 100 chars | "website", "email", "phone" |
+| source_type | string | Enum adapter selector | "whatsapp", "email", "webform" |
 | product_interest | string | Max 500 chars | "ERP Solutions" |
 | message | string | Max 1000 chars | "Need pricing info" |
-| source | string | Max 100 chars | "website", "email", "phone" |
 
 ### Phone Format Examples
 

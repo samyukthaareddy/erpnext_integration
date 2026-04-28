@@ -21,13 +21,14 @@ def client(app):
 
 
 VALID_PAYLOAD = {
-    "name": "John Doe",
+    "company": "ACME Corp",
+    "first_name": "John",
+    "last_name": "Doe",
     "email": "john@example.com",
     "phone": "+1-800-555-0199",
-    "company": "ACME Corp",
     "product_interest": "Industrial sensors",
     "message": "Need pricing for bulk order",
-    "source": "whatsapp",
+    "lead_source": "whatsapp",
 }
 
 
@@ -224,6 +225,7 @@ def test_process_lead_with_optional_fields(client):
                 **VALID_PAYLOAD,
                 "product_interest": "ERP Solutions",
                 "message": "Interested in demo",
+                "task_priority": "High",
             }
 
             response = client.post(
@@ -237,8 +239,8 @@ def test_process_lead_with_optional_fields(client):
             assert data["status"] == "success"
 
 
-def test_process_lead_name_parsing(client):
-    """Test that name is correctly parsed into first_name and last_name."""
+def test_process_lead_name_fields_mapped(client):
+    """Test that first_name and last_name are passed to lead payload."""
     with patch("app.routes.crm.ERPNextClient") as mock_client_class:
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -250,10 +252,10 @@ def test_process_lead_name_parsing(client):
             content_type="application/json",
         )
 
-        # Verify the lead data passed to create_lead
         call_args = mock_client.create_lead.call_args[0][0]
         assert call_args["first_name"] == "John"
         assert call_args["last_name"] == "Doe"
+        assert call_args["company_name"] == "ACME Corp"
 
 
 def test_process_lead_with_task_creation(client):
@@ -346,3 +348,63 @@ def test_process_lead_task_error_propagates(client):
             assert response.status_code == 500
             data = response.get_json()
             assert "error" in data
+
+
+def test_process_lead_legacy_payload_is_adapted(client):
+    """Test backward compatibility for old payload shape from upstream callers."""
+    legacy_payload = {
+        "name": "Legacy User",
+        "email": "legacy@example.com",
+        "phone": "+1-800-555-9999",
+        "company": "Legacy Corp",
+        "source": "webform",
+    }
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.create_lead.return_value = {"name": "LEAD-1010"}
+            mock_client.update_lead.return_value = {"name": "LEAD-1010"}
+            mock_task_service.return_value = {"name": "TDO-001010"}
+
+            response = client.post(
+                "/api/crm/process-lead",
+                json=legacy_payload,
+                content_type="application/json",
+            )
+
+            assert response.status_code == 201
+            lead_call = mock_client.create_lead.call_args[0][0]
+            assert lead_call["first_name"] == "Legacy"
+            assert lead_call["last_name"] == "User"
+
+
+def test_process_lead_whatsapp_source_adapter(client):
+    """Test WhatsApp upstream payload normalization path."""
+    whatsapp_payload = {
+        "source_type": "whatsapp",
+        "full_name": "Asha Rao",
+        "email": "asha@example.com",
+        "phone_number": "+91-90000-12345",
+        "business_name": "Asha Industries",
+        "message_text": "Need ERP demo",
+    }
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.create_lead.return_value = {"name": "LEAD-1011"}
+            mock_client.update_lead.return_value = {"name": "LEAD-1011"}
+            mock_task_service.return_value = {"name": "TDO-001011"}
+
+            response = client.post(
+                "/api/crm/process-lead",
+                json=whatsapp_payload,
+                content_type="application/json",
+            )
+
+            assert response.status_code == 201
+            lead_call = mock_client.create_lead.call_args[0][0]
+            assert lead_call["company_name"] == "Asha Industries"
+            assert lead_call["first_name"] == "Asha"
+            assert lead_call["source"] == "whatsapp"

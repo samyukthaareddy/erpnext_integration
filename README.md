@@ -140,13 +140,14 @@ pytest tests/ -k "validation" -v
 curl -X POST http://localhost:5000/api/crm/process-lead \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "John Doe",
-    "email": "john@example.com",
-    "phone": "+1-800-555-0199",
     "company": "ACME Corp",
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "john@example.com",
+      "phone": "+1-800-555-0199",
     "product_interest": "ERP Solutions",
     "message": "Interested in demo",
-    "source": "website"
+      "lead_source": "website"
   }'
 ```
 
@@ -155,12 +156,13 @@ curl -X POST http://localhost:5000/api/crm/process-lead \
 import requests
 
 payload = {
-    "name": "Jane Smith",
+   "company": "Tech Corp",
+   "first_name": "Jane",
+   "last_name": "Smith",
     "email": "jane@example.com",
     "phone": "+1-555-123-4567",
-    "company": "Tech Corp",
     "product_interest": "CRM System",
-    "source": "email"
+   "lead_source": "email"
 }
 
 response = requests.post(
@@ -225,6 +227,17 @@ erpnext_integration/
 ---
 
 ## Configuration
+
+### Upstream Source Adapters
+
+The endpoint supports normalized integration from other team systems with `source_type` adapters:
+
+- `legacy`: existing payload shape (`name`, `email`, `phone`, `company`)
+- `whatsapp`: fields like `full_name`, `phone_number`, `business_name`, `message_text`
+- `email`: fields like `sender_name`, `sender_email`, `body`
+- `webform`: fields like `first_name`, `last_name`, `company_name`, `email`, `phone`
+
+All adapters are converted into one canonical payload before validation and ERPNext mapping.
 
 ### Environment Variables
 

@@ -20,7 +20,7 @@ def generate_task_description(lead_data: dict) -> str:
     Returns:
         str: Formatted task description
     """
-    name = lead_data.get("name", "Unknown")
+    name = f"{lead_data.get('first_name', 'Unknown')} {lead_data.get('last_name', '')}".strip()
     email = lead_data.get("email", "unknown@example.com")
     company = lead_data.get("company", "Unknown")
     phone = lead_data.get("phone", "N/A")
@@ -75,19 +75,37 @@ def create_followup_task(
         ERPNextException: On API error during task creation
     """
     try:
-        lead_name = lead_data.get("name", f"Lead-{lead_id}")
+        lead_name = (
+            f"{lead_data.get('first_name', '')} {lead_data.get('last_name', '')}".strip()
+            or f"Lead-{lead_id}"
+        )
         description = generate_task_description(lead_data)
         due_date = calculate_due_date(hours_offset)
 
         task_data = {
-            "title": f"Follow up: {lead_name}",
+            "owner": lead_data.get("task_owner", assigned_to),
+            "company_name": lead_data.get("company"),
+            "date": due_date,
+            "contact_name": lead_data.get("contact_name", lead_name),
+            "related_to": lead_data.get("related_to", "Lead"),
+            "status": lead_data.get("task_status", "Open"),
+            "priority": lead_data.get("task_priority", "Medium"),
+            "tag": lead_data.get("task_tag"),
+            "created_by": lead_data.get("created_by"),
+            "modified_by": lead_data.get("modified_by"),
+            "reminder": lead_data.get("reminder"),
+            "repeat": lead_data.get("repeat"),
+            "closed_time": lead_data.get("closed_time"),
             "description": description,
-            "due_date": due_date,
+            "notes": lead_data.get("notes"),
+            "attachments": lead_data.get("attachments"),
+            "title": f"Follow up: {lead_name}",
             "assigned_by": assigned_to,
+            "due_date": due_date,
             "reference_type": "Lead",
             "reference_name": lead_id,
-            "priority": "Medium",
         }
+        task_data = {k: v for k, v in task_data.items() if v not in (None, "")}
 
         logger.info(f"Creating follow-up task for lead {lead_id}, assigned to {assigned_to}")
         task = client.create_task(task_data)

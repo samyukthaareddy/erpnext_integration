@@ -10,10 +10,11 @@ from app.task_service import (
 )
 
 LEAD = {
-    "name": "Jane Doe",
+    "company": "Acme Corp",
+    "first_name": "Jane",
+    "last_name": "Doe",
     "email": "jane@example.com",
     "phone": "+1-800-555-0199",
-    "company": "Acme Corp",
     "product_interest": "ERP Solutions",
     "message": "Need pricing and demo",
 }
@@ -33,7 +34,8 @@ def test_generate_task_description_complete():
 def test_generate_task_description_minimal():
     """Test description generation with minimal fields."""
     minimal_lead = {
-        "name": "John Smith",
+        "first_name": "John",
+        "last_name": "Smith",
         "email": "john@example.com",
         "company": "Tech Inc",
     }
@@ -121,6 +123,9 @@ def test_create_followup_task_calls_client_with_correct_data():
     assert call_args["reference_name"] == "LEAD-0001"
     assert call_args["priority"] == "Medium"
     assert call_args["assigned_by"] == "sales1@example.com"
+    assert call_args["owner"] == "sales1@example.com"
+    assert call_args["company_name"] == "Acme Corp"
+    assert call_args["status"] == "Open"
 
 
 def test_create_followup_task_custom_offset():

@@ -5,6 +5,7 @@ from utils.validators import validate_lead_payload
 from app.erpnext_client import ERPNextClient, ERPNextException
 from app.assignment_engine import assign_to_salesperson
 from app.task_service import create_followup_task
+from app.source_adapters import normalize_incoming_lead
 from config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,13 +19,14 @@ def process_lead():
 
     Expected JSON payload:
     {
-        "name": "John Doe",
+        "company": "ACME Corp",
+        "first_name": "John",
+        "last_name": "Doe",
         "email": "john@example.com",
         "phone": "+1-800-555-0199",
-        "company": "ACME Corp",
+        "lead_source": "whatsapp",
         "product_interest": "Industrial sensors",
-        "message": "Need pricing",
-        "source": "whatsapp"
+        "message": "Need pricing"
     }
 
     Returns:
@@ -43,8 +45,10 @@ def process_lead():
             logger.warning("Empty payload received")
             return jsonify({"error": "No payload provided"}), 400
 
+        canonical_payload = normalize_incoming_lead(payload)
+
         # Validate payload
-        validation_errors = validate_lead_payload(payload)
+        validation_errors = validate_lead_payload(canonical_payload)
 
         if validation_errors:
             logger.warning(f"Validation errors: {validation_errors}")
@@ -60,22 +64,42 @@ def process_lead():
         # Create lead in ERPNext
         try:
             lead_data = {
-                "first_name": payload.get("name", "").split()[0],
-                "last_name": " ".join(payload.get("name", "").split()[1:]) or "Lead",
-                "email_id": payload.get("email"),
-                "phone": payload.get("phone"),
-                "company_name": payload.get("company"),
-                "notes": f"Product Interest: {payload.get('product_interest', 'N/A')}\n"
-                        f"Message: {payload.get('message', 'N/A')}\n"
-                        f"Source: {payload.get('source', 'N/A')}",
+                "company_name": canonical_payload.get("company"),
+                "first_name": canonical_payload.get("first_name"),
+                "last_name": canonical_payload.get("last_name"),
+                "job_title": canonical_payload.get("job_title"),
+                "email_id": canonical_payload.get("email"),
+                "phone": canonical_payload.get("phone"),
+                "fax": canonical_payload.get("fax"),
+                "mobile_no": canonical_payload.get("mobile"),
+                "website": canonical_payload.get("website"),
+                "industry": canonical_payload.get("industry"),
+                "source": canonical_payload.get("lead_source"),
+                "status": canonical_payload.get("lead_status"),
+                "no_of_employees": canonical_payload.get("no_of_employees"),
+                "annual_revenue": canonical_payload.get("annual_revenue"),
+                "address_line1": canonical_payload.get("street"),
+                "city": canonical_payload.get("city"),
+                "state": canonical_payload.get("state"),
+                "pincode": canonical_payload.get("zip_code"),
+                "country": canonical_payload.get("country"),
+                "unsubscribed": canonical_payload.get("email_opt_out"),
+                "owner": canonical_payload.get("lead_owner") or canonical_payload.get("sales_person"),
+                "notes": canonical_payload.get("description")
+                or (
+                    f"Product Interest: {canonical_payload.get('product_interest', 'N/A')}\n"
+                    f"Message: {canonical_payload.get('message', 'N/A')}\n"
+                    f"Source: {canonical_payload.get('lead_source', 'N/A')}"
+                ),
             }
+            lead_data = {k: v for k, v in lead_data.items() if v not in (None, "")}
 
             lead = client.create_lead(lead_data)
             lead_id = lead.get("name")
             logger.info(f"Lead created successfully: {lead_id}")
 
             # Assign lead to salesperson
-            assigned_to = assign_to_salesperson(payload)
+            assigned_to = assign_to_salesperson(canonical_payload)
             client.update_lead(lead_id, {"_assign": assigned_to})
             logger.info(f"Lead {lead_id} assigned to {assigned_to}")
 
@@ -83,7 +107,7 @@ def process_lead():
             task = create_followup_task(
                 lead_id=lead_id,
                 assigned_to=assigned_to,
-                lead_data=payload,
+                lead_data=canonical_payload,
                 client=client
             )
             task_id = task.get("name")
