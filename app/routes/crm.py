@@ -85,7 +85,7 @@ def process_lead():
                 "country": canonical_payload.get("country"),
                 "unsubscribed": canonical_payload.get("email_opt_out"),
                 "owner": canonical_payload.get("lead_owner") or canonical_payload.get("sales_person"),
-                "notes": canonical_payload.get("description")
+                "remarks": canonical_payload.get("description")
                 or (
                     f"Product Interest: {canonical_payload.get('product_interest', 'N/A')}\n"
                     f"Message: {canonical_payload.get('message', 'N/A')}\n"
