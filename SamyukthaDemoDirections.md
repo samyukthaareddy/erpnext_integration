@@ -128,7 +128,47 @@ State:
 
 ---
 
-## 5. ERPNext Source Fork vs Web/API Integration
+## 5. Laptop Verification Checklist
+
+Before recording, confirm the live setup on your laptop with these checks:
+
+1. Start the Flask service with the `.env` file that contains the live ERPNext URL, API key, and API secret.
+2. Confirm the app starts without config errors.
+3. Send one test lead request to `POST /api/crm/process-lead`.
+4. Verify the response contains:
+	- `lead_id`
+	- `task_id`
+	- `assigned_to`
+	- `status: success`
+5. Open ERPNext in the browser and confirm:
+	- the Lead record exists
+	- the follow-up task exists
+	- the assigned salesperson is visible
+6. Use a fresh demo email address so the record is easy to find during recording.
+
+If any of these fail, do not record the full demo yet. Fix the environment first or fall back to the test proof path.
+
+---
+
+## 6. Demo Speech Script
+
+Use this while recording:
+
+"Hi, this is our ERPNext CRM integration demo for the AI-Driven Sales and Marketing Automation System.
+
+What you are seeing here is the live API flow. When a lead comes in, our service first normalizes the payload, validates it, creates the Lead in ERPNext, assigns it to a salesperson, and then creates a follow-up task.
+
+This is the test request I am sending from my laptop. The response shows the lead ID, task ID, assigned salesperson, and success status.
+
+Now I am switching to ERPNext to verify that the Lead record was created correctly. I can also confirm that the follow-up task exists and that the assignment was applied.
+
+This confirms that the integration is working end-to-end. The code is cloud-agnostic, so the same service can later be connected to the final deployment environment on Data Samudra by changing only the environment credentials.
+
+If the live ERPNext connection is unavailable, we also have a fallback validation path using our automated tests, which proves that the payload mapping, validation, and task creation logic are working correctly."
+
+---
+
+## 7. ERPNext Source Fork vs Web/API Integration
 
 Recommended statement:
 
@@ -138,7 +178,7 @@ Recommended statement:
 
 ---
 
-## 6. Pre-Recording Checklist
+## 8. Pre-Recording Checklist
 
 - `.env` configured with valid live credentials
 - Flask app starts without runtime errors
@@ -148,7 +188,7 @@ Recommended statement:
 
 ---
 
-## 7. Push Commands
+## 9. Push Commands
 
 ```powershell
 git add app/source_adapters.py app/routes/crm.py app/task_service.py utils/schemas.py tests/test_source_adapters.py tests/test_crm_routes.py tests/test_task_service.py tests/test_validators.py docs/API.md README.md EXECUTION_STRUCTURE.md SamyukthaDemoDirections.md
