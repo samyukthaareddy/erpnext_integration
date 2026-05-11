@@ -129,10 +129,10 @@ class TestErrorHandlingInRoutes:
                 content_type="application/json",
             )
 
-            assert response.status_code == 500
+            assert response.status_code == 400  # Non-retryable error
             data = response.get_json()
             assert "error" in data
-            assert "Lead creation failed" in data["error"]
+            assert data["retryable"] is False
 
     def test_assignment_error_during_process_lead(self, client):
         """Test handling of assignment error."""

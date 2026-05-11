@@ -1,14 +1,14 @@
 # ERPNext CRM Integration API Documentation
 
-**Version:** 1.0.0  
-**Last Updated:** 2026-04-25  
+**Version:** 1.1.0  
+**Last Updated:** 2026-05-11  
 **Status:** Production Ready
 
 ---
 
 ## Overview
 
-The ERPNext CRM Integration API provides a unified endpoint for lead management with automated assignment and follow-up task creation. This service integrates with ERPNext to streamline the lead-to-task workflow.
+The ERPNext CRM Integration API provides a unified endpoint for lead management with automated assignment and follow-up task creation. This service integrates with ERPNext to streamline the lead-to-task workflow. **v1.1.0 adds health monitoring and bulk processing capabilities for Spring Boot integration.**
 
 ## Base URL
 
@@ -39,6 +39,8 @@ Process an incoming lead and automatically:
 2. Create a lead in ERPNext
 3. Assign to a salesperson (using configured strategy)
 4. Create a follow-up task
+
+**NEW in v1.1.0:** Response now includes URLs, timestamps, and assignment strategy.
 
 #### Request
 
@@ -90,7 +92,12 @@ curl -X POST http://localhost:5000/api/crm/process-lead \
   "lead_id": "LEAD-0001",
   "task_id": "TDO-000001",
   "assigned_to": "sales1@example.com",
-  "status": "success"
+  "status": "success",
+  "lead_url": "http://localhost:8080/app/lead/LEAD-0001",
+  "task_url": "http://localhost:8080/app/todo/TDO-000001",
+  "created_at": "2026-05-11T16:28:33.123456",
+  "erpnext_name": "LEAD-0001",
+  "assignment_strategy": "round_robin"
 }
 ```
 
@@ -99,6 +106,11 @@ curl -X POST http://localhost:5000/api/crm/process-lead \
 - `task_id` (string): ERPNext Task (ToDo) document ID
 - `assigned_to` (string): Email/name of assigned salesperson
 - `status` (string): Always "success" on 201
+- `lead_url` (string): Direct link to ERPNext Lead (NEW v1.1.0)
+- `task_url` (string): Direct link to ERPNext Task (NEW v1.1.0)
+- `created_at` (string): ISO timestamp of creation (NEW v1.1.0)
+- `erpnext_name` (string): Confirms ERPNext document name (NEW v1.1.0)
+- `assignment_strategy` (string): Assignment strategy used (NEW v1.1.0)
 
 ##### Error Response - Validation Failed (400 Bad Request)
 
@@ -112,73 +124,213 @@ curl -X POST http://localhost:5000/api/crm/process-lead \
 }
 ```
 
-##### Error Response - Missing Required Field (400 Bad Request)
+##### Error Response - Retryable Error (503 Service Unavailable)
+
+**NEW in v1.1.0:** Distinguishes retryable from permanent errors.
 
 ```json
 {
-  "error": "Validation failed",
-  "details": [
-    "name is required",
-    "email is required"
+  "status": "error",
+  "error": "Connection timeout",
+  "error_type": "ERPNextException",
+  "retryable": true,
+  "timestamp": "2026-05-11T16:28:33.123456"
+}
+```
+
+Client should retry after exponential backoff.
+
+##### Error Response - Non-Retryable Error (400 Bad Request)
+
+```json
+{
+  "status": "error",
+  "error": "Invalid lead data",
+  "error_type": "ERPNextException",
+  "retryable": false,
+  "timestamp": "2026-05-11T16:28:33.123456"
+}
+```
+
+Client should not retry; fix the error and resubmit.
+
+---
+
+### GET /health
+
+Health check endpoint for monitoring and Spring Boot liveness probes.
+
+**NEW in v1.1.0:** Added for Kubernetes/Spring Boot integration.
+
+#### Request
+
+**Method:** `GET`  
+**Content-Type:** `application/json`
+
+#### Response
+
+##### Healthy Response (200 OK)
+
+```json
+{
+  "status": "healthy",
+  "erpnext_connected": true,
+  "api_version": "1.0.0",
+  "timestamp": "2026-05-11T16:28:33.123456"
+}
+```
+
+##### Degraded Response (503 Service Unavailable)
+
+```json
+{
+  "status": "degraded",
+  "erpnext_connected": false,
+  "api_version": "1.0.0",
+  "timestamp": "2026-05-11T16:28:33.123456"
+}
+```
+
+**Use Cases:**
+- Kubernetes liveness probe
+- Spring Boot actuator integration
+- Load balancer health checks
+- API monitoring dashboards
+
+---
+
+### POST /process-leads
+
+Process multiple leads in a single batch request.
+
+**NEW in v1.1.0:** Added for efficient bulk lead processing from Spring Boot orchestrator.
+
+#### Request
+
+**Method:** `POST`  
+**Content-Type:** `application/json`  
+**Max Payload Size:** 256 KB (for batch of ~50 leads)
+
+##### Request Payload Schema
+
+```json
+{
+  "leads": [
+    {
+      "company": "string (required)",
+      "first_name": "string (required)",
+      "last_name": "string (required)",
+      "email": "string (required)",
+      "phone": "string (required)",
+      "job_title": "string (optional)",
+      "lead_source": "string (optional)"
+    },
+    ...
   ]
 }
 ```
 
-##### Error Response - Empty Payload (400 Bad Request)
+##### Request Example
+
+```bash
+curl -X POST http://localhost:5000/api/crm/process-leads \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leads": [
+      {
+        "company": "ABC Inc",
+        "first_name": "John",
+        "last_name": "Doe",
+        "email": "john@abc.com",
+        "phone": "+1-555-1234"
+      },
+      {
+        "company": "XYZ Ltd",
+        "first_name": "Jane",
+        "last_name": "Smith",
+        "email": "jane@xyz.com",
+        "phone": "+1-555-5678"
+      }
+    ]
+  }'
+```
+
+#### Response
+
+##### All Success (200 OK)
 
 ```json
 {
-  "error": "No payload provided"
+  "success_count": 2,
+  "failed_count": 0,
+  "results": [
+    {
+      "index": 0,
+      "lead_id": "LEAD-0001",
+      "task_id": "TDO-000001",
+      "assigned_to": "sales1@example.com",
+      "lead_url": "http://localhost:8080/app/lead/LEAD-0001",
+      "task_url": "http://localhost:8080/app/todo/TDO-000001",
+      "status": "success"
+    },
+    {
+      "index": 1,
+      "lead_id": "LEAD-0002",
+      "task_id": "TDO-000002",
+      "assigned_to": "sales2@example.com",
+      "lead_url": "http://localhost:8080/app/lead/LEAD-0002",
+      "task_url": "http://localhost:8080/app/todo/TDO-000002",
+      "status": "success"
+    }
+  ]
 }
 ```
 
-##### Error Response - Configuration Error (500 Internal Server Error)
+##### Mixed Results (207 Multi-Status)
 
 ```json
 {
-  "error": "Configuration error"
+  "success_count": 1,
+  "failed_count": 1,
+  "results": [
+    {
+      "index": 0,
+      "lead_id": "LEAD-0001",
+      "task_id": "TDO-000001",
+      "assigned_to": "sales1@example.com",
+      "lead_url": "http://localhost:8080/app/lead/LEAD-0001",
+      "task_url": "http://localhost:8080/app/todo/TDO-000001",
+      "status": "success"
+    },
+    {
+      "index": 1,
+      "status": "failed",
+      "error": "Validation failed",
+      "details": [
+        "Email is not valid"
+      ]
+    }
+  ]
 }
 ```
 
-**Cause:** Missing ERPNext API credentials in environment variables.
+**Key Features:**
+- Each lead is processed independently
+- Failures don't stop processing of subsequent leads
+- Returns 200 if all succeed, 207 if any fail
+- Each result includes its original index for matching with input
 
-##### Error Response - ERPNext API Error (500 Internal Server Error)
+##### Error Response - Invalid Request (400 Bad Request)
 
 ```json
 {
-  "error": "Lead creation failed: API Error message from ERPNext"
+  "error": "Expected {leads: [...]}"
 }
 ```
-
-##### Error Response - Task Creation Failed (500 Internal Server Error)
-
-```json
-{
-  "error": "Internal server error"
-}
-```
-
-##### Error Response - Request Too Large (413 Payload Too Large)
-
-```json
-{
-  "error": "Request too large"
-}
-```
-
-**Cause:** Request payload exceeds 64 KB limit.
-
-##### Error Response - Unauthorized (401 Unauthorized)
-
-```json
-{
-  "error": "Unauthorized"
-}
-```
-
-**Cause:** Invalid or missing `X-API-Key` header when `INTERNAL_API_KEY` is configured.
 
 ---
+
+## Processing Guarantees
 
 ## Field Validation Rules
 
@@ -438,4 +590,5 @@ LOG_LEVEL=INFO                              # DEBUG, INFO, WARNING, ERROR
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1.0 | 2026-05-11 | **Spring Boot Integration Release** - Added GET /health for liveness probes, POST /process-leads for batch processing, enhanced /process-lead response with URLs/timestamps, improved error responses with retryable flag |
 | 1.0.0 | 2026-04-25 | Initial release with lead creation, assignment, and task automation |

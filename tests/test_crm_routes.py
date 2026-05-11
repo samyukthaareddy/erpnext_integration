@@ -147,9 +147,9 @@ def test_process_lead_erpnext_error(client):
             content_type="application/json",
         )
 
-        assert response.status_code == 500
+        assert response.status_code == 400  # Non-retryable error
         data = response.get_json()
-        assert "error" in data
+        assert data["retryable"] is False
 
 
 def test_process_lead_assignment_included_in_response(client):
@@ -345,9 +345,9 @@ def test_process_lead_task_error_propagates(client):
                 content_type="application/json",
             )
 
-            assert response.status_code == 500
+            assert response.status_code == 400  # Non-retryable error
             data = response.get_json()
-            assert "error" in data
+            assert data["retryable"] is False
 
 
 def test_process_lead_legacy_payload_is_adapted(client):
@@ -408,3 +408,295 @@ def test_process_lead_whatsapp_source_adapter(client):
             assert lead_call["company_name"] == "Asha Industries"
             assert lead_call["first_name"] == "Asha"
             assert lead_call["source"] == "whatsapp"
+
+
+# ============= Enhancement Tests =============
+
+
+def test_health_check_healthy(client):
+    """Test /health endpoint when ERPNext is up."""
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_client.session.get.return_value = mock_response
+
+        response = client.get("/api/crm/health")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["status"] == "healthy"
+        assert data["erpnext_connected"] is True
+        assert "timestamp" in data
+        assert "api_version" in data
+        assert data["api_version"] == "1.0.0"
+
+
+def test_health_check_degraded(client):
+    """Test /health endpoint when ERPNext is down."""
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_client.session.get.return_value = mock_response
+
+        response = client.get("/api/crm/health")
+
+        assert response.status_code == 503
+        data = response.get_json()
+        assert data["status"] == "degraded"
+        assert data["erpnext_connected"] is False
+
+
+def test_health_check_connection_error(client):
+    """Test /health endpoint when connection fails."""
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        mock_client.session.get.side_effect = Exception("Connection refused")
+
+        response = client.get("/api/crm/health")
+
+        assert response.status_code == 503
+        data = response.get_json()
+        assert data["status"] == "degraded"
+        assert data["erpnext_connected"] is False
+
+
+def test_process_leads_batch_all_valid(client):
+    """Test batch processing with all valid leads."""
+    engine._rr_index = 0
+    batch_payload = {
+        "leads": [
+            {
+                "company": "ABC Inc",
+                "first_name": "John",
+                "last_name": "Doe",
+                "email": "john@abc.com",
+                "phone": "+1-555-1234",
+            },
+            {
+                "company": "XYZ Ltd",
+                "first_name": "Jane",
+                "last_name": "Smith",
+                "email": "jane@xyz.com",
+                "phone": "+1-555-5678",
+            },
+        ]
+    }
+
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.base_url = "http://localhost:8080"
+            mock_client.create_lead.side_effect = [
+                {"name": "LEAD-0001"},
+                {"name": "LEAD-0002"},
+            ]
+            mock_task_service.return_value = {"name": "TDO-000001"}
+
+            response = client.post(
+                "/api/crm/process-leads",
+                json=batch_payload,
+                content_type="application/json",
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["success_count"] == 2
+            assert data["failed_count"] == 0
+            assert len(data["results"]) == 2
+            assert data["results"][0]["status"] == "success"
+            assert data["results"][1]["status"] == "success"
+
+
+def test_process_leads_batch_mixed(client):
+    """Test batch processing with mixed valid/invalid leads."""
+    batch_payload = {
+        "leads": [
+            {
+                "company": "ABC Inc",
+                "first_name": "John",
+                "last_name": "Doe",
+                "email": "john@abc.com",
+                "phone": "+1-555-1234",
+            },
+            {
+                "company": "XYZ Ltd",
+                "first_name": "Jane",
+                "last_name": "Smith",
+                "email": "invalid-email",
+                "phone": "+1-555-5678",
+            },
+        ]
+    }
+
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.base_url = "http://localhost:8080"
+            mock_client.create_lead.return_value = {"name": "LEAD-0001"}
+            mock_task_service.return_value = {"name": "TDO-000001"}
+
+            response = client.post(
+                "/api/crm/process-leads",
+                json=batch_payload,
+                content_type="application/json",
+            )
+
+            assert response.status_code == 207  # Multi-Status
+            data = response.get_json()
+            assert data["success_count"] == 1
+            assert data["failed_count"] == 1
+            assert data["results"][0]["status"] == "success"
+            assert data["results"][1]["status"] == "failed"
+
+
+def test_process_leads_batch_empty(client):
+    """Test batch processing with empty leads array."""
+    batch_payload = {"leads": []}
+
+    response = client.post(
+        "/api/crm/process-leads",
+        json=batch_payload,
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "error" in data
+
+
+def test_process_leads_batch_no_leads_field(client):
+    """Test batch processing without leads field."""
+    batch_payload = {"data": "something"}
+
+    response = client.post(
+        "/api/crm/process-leads",
+        json=batch_payload,
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "error" in data
+
+
+def test_process_lead_enhanced_response_fields(client):
+    """Test that /process-lead returns enhanced response fields."""
+    engine._rr_index = 0
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.base_url = "http://localhost:8080"
+            mock_client.create_lead.return_value = {"name": "LEAD-0001"}
+            mock_task_service.return_value = {"name": "TDO-000001"}
+
+            response = client.post(
+                "/api/crm/process-lead",
+                json=VALID_PAYLOAD,
+                content_type="application/json",
+            )
+
+            assert response.status_code == 201
+            data = response.get_json()
+            # Original fields
+            assert "lead_id" in data
+            assert "task_id" in data
+            assert "assigned_to" in data
+            assert "status" in data
+            # Enhanced fields
+            assert "lead_url" in data
+            assert "task_url" in data
+            assert "created_at" in data
+            assert "erpnext_name" in data
+            assert "assignment_strategy" in data
+            # Verify URL format
+            assert "http://localhost:8080/app/lead/LEAD-0001" == data["lead_url"]
+            assert "http://localhost:8080/app/todo/TDO-000001" == data["task_url"]
+
+
+def test_process_lead_error_retryable_timeout(client):
+    """Test error response with retryable=true for timeout."""
+    from app.erpnext_client import ERPNextException
+
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        mock_client.create_lead.side_effect = ERPNextException("Connection timeout")
+
+        response = client.post(
+            "/api/crm/process-lead",
+            json=VALID_PAYLOAD,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 503  # Retryable errors return 503
+        data = response.get_json()
+        assert data["status"] == "error"
+        assert data["retryable"] is True
+        assert "timestamp" in data
+        assert data["error_type"] == "ERPNextException"
+
+
+def test_process_lead_error_not_retryable_validation(client):
+    """Test error response with retryable=false for validation error."""
+    from app.erpnext_client import ERPNextException
+
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        mock_client.create_lead.side_effect = ERPNextException("Validation failed")
+
+        response = client.post(
+            "/api/crm/process-lead",
+            json=VALID_PAYLOAD,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400  # Non-retryable errors return 400
+        data = response.get_json()
+        assert data["status"] == "error"
+        assert data["retryable"] is False
+        assert "timestamp" in data
+
+
+def test_process_leads_batch_returns_urls(client):
+    """Test that batch processing returns URLs for each lead."""
+    batch_payload = {
+        "leads": [
+            {
+                "company": "ABC Inc",
+                "first_name": "John",
+                "last_name": "Doe",
+                "email": "john@abc.com",
+                "phone": "+1-555-1234",
+            }
+        ]
+    }
+
+    with patch("app.routes.crm.ERPNextClient") as mock_client_class:
+        with patch("app.routes.crm.create_followup_task") as mock_task_service:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.base_url = "http://localhost:8080"
+            mock_client.create_lead.return_value = {"name": "LEAD-0001"}
+            mock_task_service.return_value = {"name": "TDO-000001"}
+
+            response = client.post(
+                "/api/crm/process-leads",
+                json=batch_payload,
+                content_type="application/json",
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert "lead_url" in data["results"][0]
+            assert "task_url" in data["results"][0]
+            assert "http://localhost:8080/app/lead/LEAD-0001" == data["results"][0]["lead_url"]
+            assert "http://localhost:8080/app/todo/TDO-000001" == data["results"][0]["task_url"]
